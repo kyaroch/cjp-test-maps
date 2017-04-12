@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+  <head>
+     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.0.3/dist/leaflet.css" />
+      <script src="https://unpkg.com/leaflet@1.0.3/dist/leaflet.js"></script>
+      <script type="text/javascript" src="community_areas.geojson"></script>
+      <script type="text/javascript" src="rainbow-vis.js"></script>
+      <script type="text/javascript" src="L.Map.Sync.js"></script>
+  </head>
+  <body>
+    <div id="crime-map" style="width: 400px; height: 600px; float: left">
+    </div>
+    <div id="spacer" style="width: 20px; margin: 20px; float: left">
+    </div>
+    <div id="media-map" style="width: 400px; height: 600px; float: left">
+    </div>
+    <div style="clear: both">
+    </div>
+  </body>
+  <script>
+    function osm() {
+      var osmUrl = "http://stamen-tiles-{s}.a.ssl.fastly.net/toner-lite/{z}/{x}/{y}.png";
+      var osmAttrib = 'Map tiles by <a href="http://stamen.com">Stamen Design</a>, <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a> &mdash; Map data &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+      return new L.TileLayer(osmUrl, {minZoom: 8, maxZoom: 12, attribution: osmAttrib});
+    };
+
+    function communityAreasLayer() {
+      var layer = L.geoJSON(geojson);
+      var styles = { color: "#000000", weight: 1, fillOpacity: 0.6 };
+      layer.setStyle(styles);
+      return layer;
+    };
+
+    function maxValue(obj) {
+      var max = 0;
+      for (prop in obj) {
+        if (obj[prop] > max) {
+          max = obj[prop];
+        }
+      };
+      return max;
+    };
+
+    function rainbow(color, max) {
+      var newRainbow = new Rainbow();
+      newRainbow.setSpectrum("#f7f7f7", endColor(color));
+      newRainbow.setNumberRange(0, max);
+      return newRainbow;
+    };
+
+    function endColor(name) {
+      switch(name) {
+        case "purple": return "5e3c99"; break;
+        case "orange": return "e66101"; break;
+      }
+    };
+
+    function createMap(id) {
+      var map = L.map(id).setView([41.85, -87.65], 11);
+      map.addLayer(osm());
+      return map;
+    };
+
+    function fillCommunityAreas(data, color) {
+      var maxCrimeCount = maxValue(data.crimeCounts);
+      var fillRainbow = rainbow(color, maxCrimeCount);
+      var areasLayer = communityAreasLayer();
+      areasLayer.eachLayer(function(layer) {
+        var crimeCount = data.crimeCounts[layer.feature.properties.area_num_1] || 0;
+        var color = fillRainbow.colourAt(crimeCount);
+        layer.setStyle({ fillColor: "#" + color });
+      });
+      return areasLayer;
+    };
+
+    function addPopups(areasLayer, data, dataDescription) {
+      areasLayer.eachLayer(function(layer) {
+        var areaName = layer.feature.properties.community;
+        var areaNumber = layer.feature.properties.area_num_1;
+        var crimeCount = data.crimeCounts[areaNumber] || 0;
+        var popupText = "<p><h4>" + areaName + "</h4></p>" + "<p><b>" +
+                        data.crimeType + " (" + dataDescription + "):</b> " +
+                        crimeCount;
+        layer.bindPopup(popupText);
+      });
+    };
+
+    function createChicagoMap(name, data, color, description) {
+      var chicagoMap = createMap(name);
+      var areasLayer = fillCommunityAreas(data, color);
+      addPopups(areasLayer, data, description);
+      chicagoMap.addLayer(areasLayer);
+      return chicagoMap;
+    };
+
+    // In production we'll load the data using AJAX
+    var crimeData = {
+      timeInterval: "April 1, 2016 - April 1, 2017",
+      crimeType: "Burglary",
+      crimeCounts: { "28": 10, "32": 7, "24": 5, "8": 2, "7": 1, "22": 1 }
+    };
+    var mediaData = {
+      timeInterval: "April 1, 2016 - April 1, 2017",
+      crimeType: "Burglary",
+      crimeCounts: { "8": 10, "24": 7, "22": 5, "28": 2, "32": 1, "7": 1 }
+    };
+
+    var crimeMap = createChicagoMap(
+      "crime-map", crimeData, "purple", "police reports"
+    );
+    var mediaMap = createChicagoMap(
+      "media-map", mediaData, "orange", "media reports"
+    );
+
+    mediaMap.sync(crimeMap);
+  </script>
+</html>
